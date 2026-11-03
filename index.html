@@ -74,7 +74,7 @@
     </div>
   </div>
   <div class="ctl"><span class="lab">Markers</span>
-    <label class="sw"><input type="checkbox" id="markers"> Toggle markers</label></div>
+    <label class="sw"><input type="checkbox" id="markers" checked> Toggle markers</label></div>
 </div>
 
 <div id="err"></div>
@@ -102,6 +102,63 @@ const TABS = {
   },
 };
 let tab = 'det';
+
+// 官方 apps/config.py 的 SYMBOLS：同一模型 vs Analysis / vs ERA5 用标记形状区分。
+// 官方线型一律实线（dash 在源码里是注释掉的），不再使用虚线。
+const SYMBOLS = {
+  'Climatology vs ERA5': 'circle',
+  'Probabilistic Climatology vs ERA5': 'circle',
+  'Persistence vs ERA5': 'circle',
+  'IFS HRES vs Analysis': 'circle',
+  'IFS HRES vs ERA5': 'triangle-up',
+  'IFS ENS (mean) vs Analysis': 'circle',
+  'IFS ENS (mean) vs ERA5': 'triangle-up',
+  'IFS ENS (1st member) vs Analysis': 'triangle-down',
+  'IFS ENS (1st member) vs ERA5': 'square',
+  'IFS ENS vs Analysis': 'circle',
+  'IFS ENS vs ERA5': 'triangle-up',
+  'GraphCast vs ERA5': 'circle',
+  'GraphCast (oper.) vs ERA5': 'triangle-up',
+  'GraphCast (oper.) vs Analysis': 'circle',
+  'Pangu-Weather vs ERA5': 'circle',
+  'Pangu-Weather (oper.) vs ERA5': 'triangle-up',
+  'Pangu-Weather (oper.) vs Analysis': 'circle',
+  'Keisler (2022) vs ERA5': 'circle',
+  'ERA5-Forecasts vs ERA5': 'circle',
+  'NeuralGCM 0.7 vs ERA5': 'circle',
+  'NeuralGCM ENS vs ERA5': 'square',
+  'NeuralGCM ENS (mean) vs ERA5': 'square',
+  'NeuralGCM ENS (1st member) vs ERA5': 'triangle-down',
+  'FuXi vs ERA5': 'circle',
+  'GenCast vs ERA5': 'circle',
+  'GenCast (mean) vs ERA5': 'circle',
+  'GenCast (1st member) vs ERA5': 'triangle-down',
+  'GenCast (oper.) vs ERA5': 'triangle-up',
+  'GenCast (oper.) (mean) vs ERA5': 'triangle-up',
+  'GenCast (oper.) (1st member) vs ERA5': 'square',
+  'GenCast (oper.) vs Analysis': 'circle',
+  'GenCast (oper.) (mean) vs Analysis': 'circle',
+  'GenCast (oper.) (1st member) vs Analysis': 'triangle-down',
+  'Aurora (oper.) vs Analysis': 'triangle-down',
+  'Stormer ENS (mean) vs ERA5': 'circle',
+  'ArchesWeather-Mx4 vs ERA5': 'circle',
+  'ArchesWeatherGen (mean) vs ERA5': 'square',
+  'ArchesWeatherGen vs ERA5': 'circle',
+  'Swin vs ERA5': 'circle',
+  'Excarta (HEAL-ViT) vs ERA5': 'circle',
+  'Baguan vs ERA5': 'circle',
+  'WeatherMesh4 vs ERA5': 'circle',
+  'Tianji vs ERA5': 'circle',
+  'FGN (oper.) vs ERA5': 'triangle-up',
+  'FGN (oper.) (mean) vs ERA5': 'triangle-up',
+  'FGN (oper.) (1st member) vs ERA5': 'square',
+  'FGN (oper.) vs Analysis': 'circle',
+  'FGN (oper.) (mean) vs Analysis': 'circle',
+  'FGN (oper.) (1st member) vs Analysis': 'triangle-down',
+  'Astra vs ERA5': 'circle',
+  'Astra (mean) vs ERA5': 'circle',
+  'Astra (1st member) vs ERA5': 'triangle-down',
+};
 
 async function loadMetric(name) {
   if (DATA[name]) { meta = DATA[name]; return; }
@@ -151,8 +208,8 @@ function buildFigure() {
       modelColor[model] = 'hsl(' + ((Object.keys(modelColor).length * 359 / nmod) | 0) + ',70%,52%)';
     return modelColor[model];
   };
-  // 2 种线型 = 参考(vs Analysis 实线系 / vs ERA5 虚线系)
-  const lineDash = (truth) => truth === 'era5' ? 'dash' : 'solid';
+  // 官方不用虚线：线一律实线，靠标记形状区分 vs Analysis / vs ERA5。
+  const symbolFor = (name) => SYMBOLS[name] || 'circle';
   for (const truth in meta.series) {
     const byR = meta.series[truth][res];
     if (!byR) continue;
@@ -178,8 +235,8 @@ function buildFigure() {
         x: xMap(pts), y,
         name: showName,
         type: 'scatter', mode: el('markers').checked ? 'lines+markers' : 'lines',
-        line: {width: 2, dash: lineDash(truth), color: colorForModel(model)},
-        marker: {size: 4, color: colorForModel(model)},
+        line: {width: 2, color: colorForModel(model)},
+        marker: {size: 6, symbol: symbolFor(name), color: colorForModel(model)},
         connectgaps: false,
         hovertemplate: '%{x} h: %{y:.4f}<extra>' + showName + '</extra>',
       });
