@@ -1,0 +1,364 @@
+<!DOCTYPE html>
+<html lang="en">
+<!-- Replica of WeatherBench deterministic + probabilistic scores dashboards.
+     Static-only (works on GitHub Pages). Data slices in data/<metric>.json,
+     one fetch per metric switch. Plotly loaded from CDN.
+     Two tabs: Deterministic (det) | Probabilistic (prob). -->
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>WeatherBench-style scores</title>
+<script src="https://cdn.plot.ly/plotly-2.35.2.min.js"></script>
+<style>
+  :root { --border:#c7d3e0; --text:#17324d; --label:#35516d; }
+  * { box-sizing: border-box; }
+  body { margin:0; font-family: -apple-system,"Segoe UI",Roboto,Helvetica,Arial,sans-serif; color:var(--text); }
+  #nav {
+    display:flex; align-items:center; gap:20px;
+    padding:0 18px; background:#fff; border-bottom:1px solid var(--border);
+  }
+  #nav .brand { font-size:16px; font-weight:700; color:var(--text); padding:13px 0; margin-right:8px; }
+  #nav .brand small { font-weight:500; color:var(--label); font-size:12px; }
+  #nav .nlink {
+    border:none; background:none; padding:14px 6px 12px; font-size:14px; color:var(--label);
+    cursor:pointer; border-bottom:2px solid transparent; user-select:none; font-family:inherit;
+  }
+  #nav .nlink:hover { color:var(--text); }
+  #nav .nlink.active { color:var(--text); font-weight:700; border-bottom-color:#2f6fd0; }
+  #topbar {
+    display:flex; flex-wrap:wrap; align-items:flex-end; gap:14px;
+    padding:14px 18px; background:#f4f7fb; border-bottom:1px solid var(--border);
+  }
+  .ctl .lab {
+    display:block; font-size:12px; color:var(--label); margin-bottom:3px;
+    text-transform:uppercase; letter-spacing:.05em; font-weight:600;
+  }
+  .ctl select {
+    min-width:150px; padding:6px 8px; font-size:13px; color:var(--text);
+    border:1px solid var(--border); border-radius:6px; background:#fff;
+  }
+  .ctl input[type=checkbox] { transform:scale(1.25); margin-right:6px; vertical-align:middle; }
+  .ctl .sw { font-size:13px; color:var(--label); cursor:pointer; user-select:none; }
+  .hidden { display:none !important; }
+  #err { padding:8px 18px; color:#b00; font-size:13px; }
+  #graph { width:95vw; height:45vw; margin:14px auto 6px; }
+  #footnote { padding:4px 18px 18px; font-size:12px; color:#6a7a8c; }
+</style>
+</head>
+<body>
+
+<div id="nav">
+  <span class="brand">WeatherBench</span>
+  <button class="nlink active" data-tab="det">Deterministic scores</button>
+  <button class="nlink" data-tab="prob">Probabilistic scores</button>
+</div>
+
+<div id="topbar">
+  <div class="ctl"><span class="lab">Variable</span>
+    <select id="variable"></select></div>
+  <div class="ctl"><span class="lab">Level</span>
+    <select id="level"></select></div>
+  <div class="ctl"><span class="lab">Metric</span>
+    <select id="metric"></select></div>
+  <div class="ctl"><span class="lab">Region</span>
+    <select id="region"><option value="global" selected>Global</option></select></div>
+  <div class="ctl"><span class="lab">Year</span>
+    <select id="year"></select></div>
+  <div class="ctl"><span class="lab">Resolution</span>
+    <select id="resolution"></select></div>
+  <div class="ctl"><span class="lab">Relative to</span>
+    <div style="display:flex;align-items:center;gap:8px;line-height:34px">
+      <label style="font-size:13px"><input type="radio" name="relative" value="abs" checked> Absolute scores</label>
+      <label style="font-size:13px"><input type="radio" name="relative" value="model"> Compare to model</label>
+      <select id="relative_to" disabled></select>
+    </div>
+  </div>
+  <div class="ctl"><span class="lab">Markers</span>
+    <label class="sw"><input type="checkbox" id="markers"> Toggle markers</label></div>
+</div>
+
+<div id="err"></div>
+<div id="graph"></div>
+<div id="footnote"></div>
+
+<script>
+"use strict";
+const DATA = {};
+let meta = null;               // parsed metric payload
+
+const el = id => document.getElementById(id);
+
+// ---- per-tab config: metric order, label text ----
+const TABS = {
+  det: {
+    order: ['rmse', 'acc', 'mse', 'bias', 'prediction_activity', 'seeps', 'vector_rmse'],
+    names: {rmse:'RMSE', acc:'ACC', mse:'MSE', bias:'Bias',
+            prediction_activity:'Prediction activity', seeps:'SEEPS', vector_rmse:'Vector RMSE'},
+  },
+  prob: {
+    order: ['crps', 'spread_skill', 'unbiased_spread_skill', 'unbiased_mean_rmse', 'mean_rmse'],
+    names: {crps:'CRPS', spread_skill:'Spread / Skill', unbiased_spread_skill:'Unbiased Spread / Skill',
+            unbiased_mean_rmse:'Unbiased Mean RMSE', mean_rmse:'Mean RMSE'},
+  },
+};
+let tab = 'det';
+
+async function loadMetric(name) {
+  if (DATA[name]) { meta = DATA[name]; return; }
+  const r = await fetch('data/' + name + '.json');
+  if (!r.ok) throw new Error('data/' + name + '.json -> HTTP ' + r.status);
+  const j = await r.json();
+  meta = j;
+  DATA[name] = j;
+}
+
+function varOptions(vkey) {
+  // vkey may be "temperature@850" or "wind_speed" (surface)
+  const i = vkey.lastIndexOf('@');
+  return i === -1 ? [vkey, '-1'] : [vkey.slice(0, i), vkey.slice(i + 1)];
+}
+
+function currentVar() {
+  const v = el('variable').value;
+  const lv = el('level').value;
+  return lv === '-1' ? v : v + '@' + lv;
+}
+
+function refLabel(truth) { return (meta.refs && meta.refs[truth]) || truth; }
+
+function buildFigure() {
+  const varSel = el('variable').value;
+  const lvlSel = el('level').value;
+  const vkey = lvlSel === '-1' ? varSel : varSel + '@' + lvlSel;
+  const metric = el('metric').value;
+  const year = el('year').value;
+  const res = el('resolution').value;
+  const relativeTo = el('relative_to').disabled ? null : el('relative_to').value;
+  const isProb = tab === 'prob';
+  const mtype = isProb ? 'ens' : 'det';   // tab decides: Probabilistic->ens, Deterministic->det
+  const baseNames = new Set(meta.models && Object.keys(meta.models));
+
+  const xMap = (a) => a.map(p => p[0]);
+  const yMap = (a) => a.map(p => p[1]);
+
+  const traces = [];
+  let shown = 0;
+  // 模型 -> 稳定色相(均匀铺开);同一模型 vs Analysis / vs ERA5 共用一色
+  const modelColor = {};
+  const nmod = Math.max(1, Object.keys(meta.models).length);
+  const colorForModel = (model) => {
+    if (modelColor[model] === undefined)
+      modelColor[model] = 'hsl(' + ((Object.keys(modelColor).length * 359 / nmod) | 0) + ',70%,52%)';
+    return modelColor[model];
+  };
+  // 2 种线型 = 参考(vs Analysis 实线系 / vs ERA5 虚线系)
+  const lineDash = (truth) => truth === 'era5' ? 'dash' : 'solid';
+  for (const truth in meta.series) {
+    const byR = meta.series[truth][res];
+    if (!byR) continue;
+    const byY = byR[year];
+    if (!byY) continue;
+    const byV = byY[vkey];
+    if (!byV) continue;
+    const ref = refLabel(truth);
+    for (const model in byV) {
+      const pts = byV[model];
+      if (!pts || !pts.length) continue;
+      const cat = (meta.cat && meta.cat[model]) || 'det';
+      if (cat !== mtype) continue;
+      const name = (baseNames.has(model) ? (meta.models[model] || model) : model) + ' vs ' + ref;
+      const showName = name;
+      let y = yMap(pts);
+      if (relativeTo) {
+        const base = (byV[relativeTo] || []).map(p => p[1]);
+        if (!base.length) continue;
+        y = y.map((v, i) => v - (base[i] !== undefined ? base[i] : v));
+      }
+      traces.push({
+        x: xMap(pts), y,
+        name: showName,
+        type: 'scatter', mode: el('markers').checked ? 'lines+markers' : 'lines',
+        line: {width: 2, dash: lineDash(truth), color: colorForModel(model)},
+        marker: {size: 4, color: colorForModel(model)},
+        connectgaps: false,
+        hovertemplate: '%{x} h: %{y:.4f}<extra>' + showName + '</extra>',
+      });
+      shown++;
+    }
+  }
+
+  const traceMeta = traces.map(t => ({
+    x: t.x, y: t.y, name: t.name, mode: t.mode,
+    line: t.line, marker: t.marker, type: 'scatter', hovertemplate: t.hovertemplate,
+  }));
+
+  const unit = (meta.names && meta.names[vkey] && meta.names[vkey].unit) || '';
+  const ytitleEl = relativeTo ? metric + ' diff' : metric;
+  Plotly.newPlot('graph', traceMeta, {
+    title: {
+      text: vkey + (unit ? ' [' + unit + ']' : '') + ' · ' + metric +
+            (relativeTo ? ' vs ' + (meta.models[relativeTo] || relativeTo) : '') +
+            ' · ' + res + ' · ' + year,
+      font: {size: 15},
+    },
+    xaxis: {title: 'Lead time [hours]', showgrid: true, gridcolor: '#e5ecf6'},
+    yaxis: {title: ytitleEl + '  [' + unit + ']', showgrid: true, gridcolor: '#e5ecf6'},
+    showlegend: true,
+    legend: {x: 1.02, xanchor: 'left'},
+    margin: {l: 60, r: 8, t: 60, b: 48},
+    hovermode: 'closest',
+    displaylogo: false,
+  });
+  let tip = 'Curves: one line per model per reference (' +
+      Object.keys(meta.refs || {}).join(' / ') + '). Click legend to toggle.';
+  if (isProb) tip += '  Probabilistic models: ensemble forecasts scored by CRPS.';
+  if (shown === 0)
+    tip += '  · No data at this selection — try another Year / Variable / Resolution.';
+  el('footnote').textContent = tip;
+}
+
+async function refresh() {
+  el('err').textContent = '';
+  try {
+    const metric = el('metric').value;
+    if (!DATA[metric]) await loadMetric(metric);
+    buildFigure();
+  } catch (e) { el('err').textContent = 'Load failed: ' + e.message; }
+}
+
+function fillMetaSelects() {
+  // variables (from meta.names keys)
+  const names = el('variable');
+  const currentVar = names.value || '';
+  names.innerHTML = '';
+  for (const vkey in meta.names) {
+    const [v, lv] = varOptions(vkey);
+    if (![...names.options].some(o => o.value === v)) {
+      const o = document.createElement('option'); o.value = v;
+      const pretty = v.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase());
+      o.textContent = pretty; names.appendChild(o);
+    }
+  }
+  if (currentVar) names.value = currentVar;
+  refillLevels();
+}
+
+function refillLevels() {
+  const v = el('variable').value;
+  const lvl = el('level');
+  const prev = lvl.value;
+  const set = new Set();
+  for (const vkey in meta.names) {
+    if (varOptions(vkey)[0] === v) meta.names[vkey].levels.forEach(l => set.add(String(l)));
+  }
+  lvl.innerHTML = '';
+  for (const l of [...set].sort((a, b) => Number(b) - Number(a))) {
+    const o = document.createElement('option');
+    o.value = l; o.textContent = l === '-1' ? 'Surface' : l + ' hPa';
+    lvl.appendChild(o);
+  }
+  if (prev && [...lvl.options].some(o => o.value === prev)) lvl.value = prev;
+}
+
+function safeSelect(id, values) {
+  const s = el(id);
+  const prev = s.value;
+  s.innerHTML = '';
+  for (const v of values) {
+    const o = document.createElement('option'); o.value = v; o.textContent = v; s.appendChild(o);
+  }
+  if (prev && [...s.options].some(o => o.value === prev)) s.value = prev;
+}
+
+function fillRepSelectors() {
+  safeSelect('year', meta.years || []);
+  safeSelect('resolution', meta.resolutions || []);
+  const m = el('metric');
+  const prev = m.value;
+  m.innerHTML = '';
+  const cfg = TABS[tab];
+  for (const me of cfg.order) {            // advertise any file we can serve, not just loaded
+    if (!hasFile(me)) continue;
+    const o = document.createElement('option'); o.value = me;
+    o.textContent = cfg.names[me] || me; m.appendChild(o);
+  }
+  if (prev && [...m.options].some(o => o.value === prev)) m.value = prev;
+}
+
+function fillRelativeTo() {
+  const s = el('relative_to');
+  const prev = s.value;
+  s.innerHTML = '';
+  for (const model in meta.models || {}) {
+    const o = document.createElement('option'); o.value = model;
+    o.textContent = meta.models[model]; s.appendChild(o);
+  }
+  if (prev && [...s.options].some(o => o.value === prev)) s.value = prev;
+}
+
+async function initMetrics() {
+  // load first metric of current tab; populate selects
+  const first = TABS[tab].order.find(m => hasFile(m)) || TABS[tab].order[0];
+  try {
+    await loadMetric(first);
+  } catch (e) { el('err').textContent = 'init: ' + e.message; return; }
+  fillMetaSelects();
+  // default to a multi-level pressure var so level dropdown isn't bare Surface
+  for (const f of ['temperature', 'geopotential', '2m_temperature']) {
+    if ([...el('variable').options].some(o => o.value === f)) { el('variable').value = f; break; }
+  }
+  refillLevels();
+  if ([...el('level').options].some(o => o.value === '850')) el('level').value = '850';
+  fillRepSelectors();
+  fillRelativeTo();
+  el('metric').value = first;
+  // most ensemble/prob models are only scored in 2020; default to fullest year
+  if (meta.years && meta.years.includes('2020')) el('year').value = '2020';
+}
+
+async function switchTab(t) {
+  tab = t;
+  document.querySelectorAll('#nav .nlink').forEach(b =>
+    b.classList.toggle('active', b.dataset.tab === t));
+  try {
+    await loadMetric(TABS[t].order.find(m => hasFile(m)) || TABS[t].order[0]);
+    fillMetaSelects();
+    fillRepSelectors();
+    fillRelativeTo();
+    await refresh();
+  } catch (e) { el('err').textContent = 'switch: ' + e.message; }
+}
+
+async function init() {
+  await initMetrics();
+  await refresh();   // render the default view immediately (initMetrics only populates)
+  ['variable','level','metric','year','resolution'].forEach(id =>
+    el(id).addEventListener('change', refresh));
+  el('markers').addEventListener('change', refresh);
+  document.querySelectorAll('input[name=relative]').forEach(r =>
+    r.addEventListener('change', e => {
+      el('relative_to').disabled = e.target.value !== 'model';
+      buildFigure();
+    }));
+  el('relative_to').addEventListener('change', refresh);
+  document.querySelectorAll('#nav .nlink').forEach(b =>
+    b.addEventListener('click', () => switchTab(b.dataset.tab)));
+}
+
+// hasFile: cheap existence probe so we only advertise metrics with a slice.
+const _probed = {};
+function hasFile(name) {
+  if (_probed[name] !== undefined) return _probed[name];
+  try {
+    const xhr = new XMLHttpRequest();
+    xhr.open('HEAD', 'data/' + name + '.json', false);  // sync probe (one-file cost, cached)
+    xhr.send(null);
+    _probed[name] = xhr.status === 200;
+  } catch (e) { _probed[name] = false; }
+  return _probed[name];
+}
+
+window.addEventListener('DOMContentLoaded', init);
+</script>
+</body>
+</html>
