@@ -92,6 +92,14 @@ REF_LABEL = {'era5': 'ERA5', 'hres_t0': 'Analysis'}
 
 # 集合预测模型集合（含集合 mean 与单 member）；其余为确定性模型。
 # 仅对 det 源生效。prob 源里所有模型都是 ensemble。
+# 不进站点的模型：官方 deterministic 榜里 "GenCast (oper.)" 对应的是
+# gencast_operational_100m_uv_*；另有一套不加 100m_uv 的老跑法
+# （gencast_operational_mean / _single_member），显示名会和官方条目撞车，
+# 数据仍保留在 scores_all.csv 里，只是不在网页上画。
+HIDDEN_MODELS = {
+    'gencast_operational_mean', 'gencast_operational_single_member',
+}
+
 ENS_MODELS = {
     'ens_mean', 'ens_single_member',
     'gencast_mean', 'gencast_single_member',
@@ -119,10 +127,12 @@ def parse_csv(path):
             lead = int(row['lead_h']); val = float(row['value']); unit = row['unit']
             vkey = var if lvl == '-1' else '%s@%s' % (var, lvl)
 
-            metrics.setdefault(m, {}).setdefault(truth, {}).setdefault(res, {}) \
-                   .setdefault(yr, {}).setdefault(vkey, {}).setdefault(row['model'], {})[lead] = val
-
             model = row['model']
+            if model in HIDDEN_MODELS:
+                continue
+            metrics.setdefault(m, {}).setdefault(truth, {}).setdefault(res, {}) \
+                   .setdefault(yr, {}).setdefault(vkey, {}).setdefault(model, {})[lead] = val
+
             if model not in models:
                 models[model] = MODEL_LONG_PROB.get(model) or MODEL_LONG.get(model, model)
             v = vars_.setdefault(vkey, {'levels': set(), 'unit': unit})

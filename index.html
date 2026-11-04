@@ -221,8 +221,11 @@ function buildFigure() {
     for (const model in byV) {
       const pts = byV[model];
       if (!pts || !pts.length) continue;
+      // det 数据源里也有集合类模型（官方 deterministic 榜会画 IFS ENS、
+      // GenCast、FGN 的 mean / 1st member），所以只在概率榜按 cat 过滤；
+      // prob 数据源（crps/spread…）里的模型本来就是全 ens。
       const cat = (meta.cat && meta.cat[model]) || 'det';
-      if (cat !== mtype) continue;
+      if (isProb && cat !== mtype) continue;
       const name = (baseNames.has(model) ? (meta.models[model] || model) : model) + ' vs ' + ref;
       const showName = name;
       let y = yMap(pts);
