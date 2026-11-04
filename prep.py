@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-r"""把 scores 下的全量 CSV 瘦化成按 metric 分片的 JSON，供 replica/index.html 静态复刻站使用。
+r"""把 scores 下的全量 CSV 瘦化成按 metric 分片的 JSON，供 index.html 静态复刻站使用。
 
 支持两个数据源（用 --src 切换，一次只出一个产物）：
   --src=det  (默认)  读 scores/scores_all.csv   -> data/<det metric>.json  确定性评分
@@ -19,9 +19,9 @@ truth / resolution / year / variable@level / model 的 (lead, value) 曲线向�
       "series":  {truth: {res: {year: {varkey: {model: [[lead,value],...]}}}}}
     }
 
-用法（WSL，仓库根）：
-    python frontend/replica/prep.py --src=det   # 确定性 -> data/rmse.json 等 7 个
-    python frontend/replica/prep.py --src=prob  # 概率   -> data/crps.json 等 3 个
+用法（仓库根）：
+    python prep.py --src=det   # 确定性 -> data/rmse.json 等 7 个
+    python prep.py --src=prob  # 概率   -> data/crps.json 等 3 个
 """
 import argparse
 import csv
@@ -29,7 +29,7 @@ import json
 import os
 
 HERE = os.path.dirname(os.path.abspath(__file__))
-ROOT = os.path.normpath(os.path.join(HERE, '..', '..'))
+ROOT = os.path.normpath(os.path.join(HERE, '..'))
 OUT = os.path.join(HERE, 'data')
 
 # ----------------------------- model 展示名 -----------------------------
@@ -72,6 +72,7 @@ MODEL_LONG = {
     'arches_weather': 'ArchesWeather',
     'arches_weather_gen_mean': 'ArchesWeatherGen (mean)',
     'arches_weather_mx4': 'ArchesWeather-Mx4',
+    'tongyun': 'TongYun',
 }
 # 概率榜的模型内部名（prob_all.csv 里的 model 列）
 MODEL_LONG_PROB = {
