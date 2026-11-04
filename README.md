@@ -9,6 +9,9 @@
   与官方 deterministic 页一致，默认 RMSE）× 3 分辨率（1440x721/240x121/64x32）× 3 年份（2018/2020/2022）
   × 2 参考（ERA5/Analysis）
   额外加入 **TongYun** 的 2022 年 z500（ERA5 参考、1440x721）
+- **WeatherBenchX 补充指标**（目前只有 TongYun 有行）：Error Exceedance、Relative Intensity，
+  以及降水（total_precipitation_6hr）的 CSI / Frequency Bias / FSS（≥1/5/10 mm per 6h，FSS 邻域 9 px）。
+  由 `scripts/wb2_extra_metrics.py` 后处理生成，定义对齐 WeatherBenchX（面积加权、按 init 平均）
 - **Probabilistic scores**：9 个概率模型 × 5 指标（CRPS/Spread/Skill/Unbiased Spread/Unbiased Mean RMSE/Mean RMSE）
 
 ## 数据
@@ -18,7 +21,12 @@
 - 确定性长表：`scores/scores_all.csv`（`scripts/wb2_benchmark_scores.py` 解析）
 - TongYun z500：由 `scores/TongYun_nc/wb2_2022_z500_deterministic.nc` 追加进 `scores_all.csv`
   （model=tongyun，year=2022，truth=era5，level=500；rmse 由 sqrt(mse) 得到）。
-  当前这份是 2022 全年 699 个起报的结果（2022-01-01 00Z – 12-16 12Z，6h 间隔，lead 6–360h）。
+  当前这份是 2022 全年 700 个起报的结果（2022-01-01 00Z – 12-16 12Z，12h 间隔，lead 6–360h）。
+- TongYun 补充指标：`scripts/wb2_extra_metrics.py` 在服务器上直接从 forecast/truth/climatology
+  zarr 算出长表 CSV（表头与 `scores_all.csv` 完全一致），下载后按 `model=tongyun` + 这些 metric 名
+  去重合并进 `scores_all.csv`，再跑 `prep.py --src=det`。
+  阈值是脚本顶部的字面量：`ERROR_EXCEEDANCE_THRESHOLD`（z500 50 gpm、温度 5 K、风 5 m/s、
+  msl 5 hPa、q 1.5 g/kg、降水 5 mm/6h）、`PRECIP_THRESHOLDS_MM`、`FSS_NEIGHBORHOOD_PX`。
 - 概率长表：`scores/prob_all.csv`（`scripts/wb2_prob2csv.py` 解析）
 - 站点 JSON：由 `prep.py --src=det|prob` 从上述 CSV 瘦化生成到 `data/`
 
