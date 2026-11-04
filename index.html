@@ -92,16 +92,17 @@ const el = id => document.getElementById(id);
 const TABS = {
   det: {
     // 官方 deterministic 页的 6 个指标（dash_app.py 按 zarr 里的字母序排列，默认 RMSE）
+    // + 数据库里能算的其它指标（vector_rmse 官方页没有，但 benchmark_results 里有）
     // + WeatherBenchX 补充指标：目前只有 tongyun 有数（scripts/wb2_extra_metrics.py 后处理产出），
     //   其余模型没有行时该指标在变量下拉里就只显示我们有的变量。
     order: ['acc', 'bias', 'prediction_activity', 'error_exceedance',
-            'relative_intensity', 'mse', 'rmse', 'seeps',
+            'relative_intensity', 'mse', 'rmse', 'seeps', 'vector_rmse',
             'csi_gt1mm', 'csi_gt5mm', 'csi_gt10mm',
             'frequency_bias_gt1mm', 'frequency_bias_gt5mm', 'frequency_bias_gt10mm',
             'fss_gt1mm_9px', 'fss_gt5mm_9px', 'fss_gt10mm_9px'],
     names: {acc:'ACC', bias:'Bias', prediction_activity:'Forecast Activity',
             error_exceedance:'Error Exceedance', relative_intensity:'Relative Intensity',
-            mse:'MSE', rmse:'RMSE', seeps:'SEEPS',
+            mse:'MSE', rmse:'RMSE', seeps:'SEEPS', vector_rmse:'Vector RMSE',
             csi_gt1mm:'CSI (≥1mm/6h)', csi_gt5mm:'CSI (≥5mm/6h)',
             csi_gt10mm:'CSI (≥10mm/6h)',
             frequency_bias_gt1mm:'Frequency Bias (≥1mm/6h)',
