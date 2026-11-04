@@ -228,6 +228,17 @@ function buildFigure() {
   };
   // 官方不用虚线：线一律实线，靠标记形状区分 vs Analysis / vs ERA5。
   const symbolFor = (name) => SYMBOLS[name] || 'circle';
+  // 基准模型（Relative to）在当前 metric/变量/年份下可能一行都没有
+  // （例如 TongYun 只有 acc/bias/mse/rmse，没有 Forecast Activity）。
+  // 那种情况整张图会被清空，所以统一退回绝对分数并在脚注里说明。
+  let relOk = false;
+  if (relativeTo) {
+    for (const truth in meta.series) {
+      const byV = (((meta.series[truth] || {})[res] || {})[year] || {})[vkey];
+      if (byV && (byV[relativeTo] || []).length) { relOk = true; break; }
+    }
+  }
+  const relMissing = !!relativeTo && !relOk;
   for (const truth in meta.series) {
     const byR = meta.series[truth][res];
     if (!byR) continue;
@@ -235,6 +246,8 @@ function buildFigure() {
     if (!byY) continue;
     const byV = byY[vkey];
     if (!byV) continue;
+    // 有基准就做差；某个参考下没有基准（如 TongYun 只对 ERA5 有数）就跳过那一组
+    if (relOk && !(byV[relativeTo] || []).length) continue;
     const ref = refLabel(truth);
     for (const model in byV) {
       const pts = byV[model];
@@ -247,9 +260,8 @@ function buildFigure() {
       const name = (baseNames.has(model) ? (meta.models[model] || model) : model) + ' vs ' + ref;
       const showName = name;
       let y = yMap(pts);
-      if (relativeTo) {
-        const base = (byV[relativeTo] || []).map(p => p[1]);
-        if (!base.length) continue;
+      if (relOk) {
+        const base = byV[relativeTo].map(p => p[1]);
         y = y.map((v, i) => v - (base[i] !== undefined ? base[i] : v));
       }
       traces.push({
@@ -272,11 +284,11 @@ function buildFigure() {
 
   const unit = (meta.names && meta.names[vkey] && meta.names[vkey].unit) || '';
   const metricName = (TABS[tab].names && TABS[tab].names[metric]) || metric;
-  const ytitleEl = relativeTo ? metricName + ' diff' : metricName;
+  const ytitleEl = relOk ? metricName + ' diff' : metricName;
   Plotly.newPlot('graph', traceMeta, {
     title: {
       text: vkey + (unit ? ' [' + unit + ']' : '') + ' · ' + metricName +
-            (relativeTo ? ' vs ' + (meta.models[relativeTo] || relativeTo) : '') +
+            (relOk ? ' vs ' + (meta.models[relativeTo] || relativeTo) : '') +
             ' · ' + res + ' · ' + year,
       font: {size: 15},
     },
@@ -291,6 +303,9 @@ function buildFigure() {
   let tip = 'Curves: one line per model per reference (' +
       Object.keys(meta.refs || {}).join(' / ') + '). Click legend to toggle.';
   if (isProb) tip += '  Probabilistic models: ensemble forecasts scored by CRPS.';
+  if (relMissing)
+    tip += '  · 基准模型 ' + (meta.models[relativeTo] || relativeTo) +
+           ' 在该指标/变量/年份下没有数据，已按绝对分数显示。';
   if (shown === 0)
     tip += '  · No data at this selection — try another Year / Variable / Resolution.';
   el('footnote').textContent = tip;
