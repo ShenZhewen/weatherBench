@@ -91,14 +91,17 @@ const el = id => document.getElementById(id);
 // ---- per-tab config: metric order, label text ----
 const TABS = {
   det: {
-    order: ['rmse', 'acc', 'mse', 'bias', 'prediction_activity', 'seeps', 'vector_rmse'],
-    names: {rmse:'RMSE', acc:'ACC', mse:'MSE', bias:'Bias',
-            prediction_activity:'Prediction activity', seeps:'SEEPS', vector_rmse:'Vector RMSE'},
+    // 官方 deterministic 页的 6 个指标（dash_app.py 按 zarr 里的字母序排列，默认 RMSE）
+    order: ['acc', 'bias', 'prediction_activity', 'mse', 'rmse', 'seeps'],
+    names: {acc:'ACC', bias:'Bias', prediction_activity:'Forecast Activity',
+            mse:'MSE', rmse:'RMSE', seeps:'SEEPS'},
+    default: 'rmse',
   },
   prob: {
     order: ['crps', 'spread_skill', 'unbiased_spread_skill', 'unbiased_mean_rmse', 'mean_rmse'],
-    names: {crps:'CRPS', spread_skill:'Spread / Skill', unbiased_spread_skill:'Unbiased Spread / Skill',
+    names: {crps:'CRPS', spread_skill:'Spread/Skill', unbiased_spread_skill:'Unbiased Spread/Skill',
             unbiased_mean_rmse:'Unbiased Mean RMSE', mean_rmse:'Mean RMSE'},
+    default: 'crps',
   },
 };
 let tab = 'det';
@@ -253,10 +256,11 @@ function buildFigure() {
   }));
 
   const unit = (meta.names && meta.names[vkey] && meta.names[vkey].unit) || '';
-  const ytitleEl = relativeTo ? metric + ' diff' : metric;
+  const metricName = (TABS[tab].names && TABS[tab].names[metric]) || metric;
+  const ytitleEl = relativeTo ? metricName + ' diff' : metricName;
   Plotly.newPlot('graph', traceMeta, {
     title: {
-      text: vkey + (unit ? ' [' + unit + ']' : '') + ' · ' + metric +
+      text: vkey + (unit ? ' [' + unit + ']' : '') + ' · ' + metricName +
             (relativeTo ? ' vs ' + (meta.models[relativeTo] || relativeTo) : '') +
             ' · ' + res + ' · ' + year,
       font: {size: 15},
@@ -357,8 +361,10 @@ function fillRelativeTo() {
 }
 
 async function initMetrics() {
-  // load first metric of current tab; populate selects
-  const first = TABS[tab].order.find(m => hasFile(m)) || TABS[tab].order[0];
+  // load the tab's default metric (official: RMSE / CRPS); populate selects
+  const cfg = TABS[tab];
+  const first = (cfg.default && hasFile(cfg.default)) ? cfg.default
+              : cfg.order.find(m => hasFile(m)) || cfg.order[0];
   try {
     await loadMetric(first);
   } catch (e) { el('err').textContent = 'init: ' + e.message; return; }
@@ -381,9 +387,13 @@ async function switchTab(t) {
   document.querySelectorAll('#nav .nlink').forEach(b =>
     b.classList.toggle('active', b.dataset.tab === t));
   try {
-    await loadMetric(TABS[t].order.find(m => hasFile(m)) || TABS[t].order[0]);
+    const cfg = TABS[t];
+    const first = (cfg.default && hasFile(cfg.default)) ? cfg.default
+                : cfg.order.find(m => hasFile(m)) || cfg.order[0];
+    await loadMetric(first);
     fillMetaSelects();
     fillRepSelectors();
+    el('metric').value = first;
     fillRelativeTo();
     await refresh();
   } catch (e) { el('err').textContent = 'switch: ' + e.message; }

@@ -5,8 +5,9 @@
 
 ## 包含
 
-- **Deterministic scores**：官方模型 × 7 指标（rmse/acc/mse/bias/prediction_activity/seeps/vector_rmse）
-  × 3 分辨率（1440x721/240x121/64x32）× 3 年份（2018/2020/2022）× 2 参考（ERA5/Analysis）
+- **Deterministic scores**：官方模型 × 6 指标（ACC/Bias/Forecast Activity/MSE/RMSE/SEEPS，
+  与官方 deterministic 页一致，默认 RMSE）× 3 分辨率（1440x721/240x121/64x32）× 3 年份（2018/2020/2022）
+  × 2 参考（ERA5/Analysis）
   额外加入 **TongYun** 的 2022 年 z500（ERA5 参考、1440x721）
 - **Probabilistic scores**：9 个概率模型 × 5 指标（CRPS/Spread/Skill/Unbiased Spread/Unbiased Mean RMSE/Mean RMSE）
 
