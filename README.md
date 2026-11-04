@@ -17,7 +17,7 @@
 - 确定性长表：`scores/scores_all.csv`（`scripts/wb2_benchmark_scores.py` 解析）
 - TongYun z500：由 `scores/TongYun_nc/wb2_2022_z500_deterministic.nc` 追加进 `scores_all.csv`
   （model=tongyun，year=2022，truth=era5，level=500；rmse 由 sqrt(mse) 得到）。
-  当前这份是 1 月冒烟归档（63 个起报），先按全年展示；全年 Job 跑完后重新生成即可。
+  当前这份是 2022 全年 699 个起报的结果（2022-01-01 00Z – 12-16 12Z，6h 间隔，lead 6–360h）。
 - 概率长表：`scores/prob_all.csv`（`scripts/wb2_prob2csv.py` 解析）
 - 站点 JSON：由 `prep.py --src=det|prob` 从上述 CSV 瘦化生成到 `data/`
 
