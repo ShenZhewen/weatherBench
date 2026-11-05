@@ -135,7 +135,11 @@ def parse_csv(path):
 
             if model not in models:
                 models[model] = MODEL_LONG_PROB.get(model) or MODEL_LONG.get(model, model)
-            v = vars_.setdefault(vkey, {'levels': set(), 'unit': unit})
+            v = vars_.setdefault(vkey, {'levels': set(), 'unit': ''})
+            # 同一变量的单位随 metric 变（tp 的 acc 是空、mse 是 mm²/step、rmse 是 mm/6h），
+            # 统一取 rmse 的单位；没有 rmse 时取第一个非空单位。
+            if unit and (m == 'rmse' or not v['unit']):
+                v['unit'] = unit
             if lvl != '-1':
                 v['levels'].add(int(lvl))
             else:

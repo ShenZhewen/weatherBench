@@ -218,12 +218,23 @@ function buildFigure() {
 
   const traces = [];
   let shown = 0;
-  // 模型 -> 稳定色相(均匀铺开);同一模型 vs Analysis / vs ERA5 共用一色
+  // 模型 -> 稳定颜色；同一模型 vs Analysis / vs ERA5 共用一色。
+  // 色表是按 CIELab 最大最小距离挑出来的 40 色（任意两色 ΔE76 ≥ 22，且避开
+  // 白底过浅的颜色）；按 meta.models 的固定顺序取，模型多时也不会撞成一片同色。
+  const MODEL_COLORS = [
+    '#4f72c4', '#17d317', '#f91a1a', '#1a1af9', '#736326', '#f91ab6', '#05bdbd', '#8a0f34',
+    '#e58c06', '#0f0f8a', '#0f8a34', '#ae51ec', '#cf6ea8', '#8fae13', '#dd785f', '#266373',
+    '#f91a73', '#2cafe8', '#7e1b7e', '#065fe5', '#f91af9', '#952104', '#267354', '#262e73',
+    '#a86ecf', '#ae8f13', '#733d26', '#05bd86', '#2c3fe8', '#d63d4d', '#bd0573', '#607e1b',
+    '#e8642c', '#732654', '#a01af9', '#955b04', '#dd5fd0', '#29c248', '#0f598a', '#bd05bd',
+  ];
   const modelColor = {};
-  const nmod = Math.max(1, Object.keys(meta.models).length);
+  const modelKeys = Object.keys(meta.models || {});
   const colorForModel = (model) => {
-    if (modelColor[model] === undefined)
-      modelColor[model] = 'hsl(' + ((Object.keys(modelColor).length * 359 / nmod) | 0) + ',70%,52%)';
+    if (modelColor[model] === undefined) {
+      const i = Math.max(0, modelKeys.indexOf(model));
+      modelColor[model] = MODEL_COLORS[i % MODEL_COLORS.length];
+    }
     return modelColor[model];
   };
   // 官方不用虚线：线一律实线，靠标记形状区分 vs Analysis / vs ERA5。

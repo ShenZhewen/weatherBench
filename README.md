@@ -19,12 +19,14 @@
 - 原始评分数据：全部 373 个官方 `benchmark_results/*.nc`（`scripts/wb2_fetch_scores.py` 从
   `gs://weatherbench2` 拉取）
 - 确定性长表：`scores/scores_all.csv`（`scripts/wb2_benchmark_scores.py` 解析）
-- TongYun z500：由 `scores/TongYun_nc/wb2_2022_z500_deterministic.nc` 追加进 `scores_all.csv`
-  （model=tongyun，year=2022，truth=era5，level=500；rmse 由 sqrt(mse) 得到）。
+- TongYun 确定性评分：`scores/TongYun_nc/wb2_2022_<var>_deterministic.nc`（11 个变量：z500、
+  q700、t700、t850、t2m、msl、u850、v850、u10、v10、tp）由 `scripts/wb2_tongyun_nc2csv.py`
+  追加进 `scores_all.csv`（model=tongyun，year=2022，truth=era5，resolution=1440x721；
+  rmse 由 sqrt(mse) 得到；tp 从 m 换算成 mm/6h）。
   当前这份是 2022 全年 700 个起报的结果（2022-01-01 00Z – 12-16 12Z，12h 间隔，lead 6–360h）。
 - TongYun 补充指标：`scripts/wb2_extra_metrics.py` 在服务器上直接从 forecast/truth/climatology
-  zarr 算出长表 CSV（表头与 `scores_all.csv` 完全一致），下载后按 `model=tongyun` + 这些 metric 名
-  去重合并进 `scores_all.csv`，再跑 `prep.py --src=det`。
+  zarr 算出长表 CSV（表头与 `scores_all.csv` 完全一致），与该目录下的 `wb2_2022_extra.csv`
+  一起由 `scripts/wb2_tongyun_nc2csv.py` 合并进 `scores_all.csv`，再跑 `prep.py --src=det`。
   阈值是脚本顶部的字面量：`ERROR_EXCEEDANCE_THRESHOLD`（z500 50 gpm、温度 5 K、风 5 m/s、
   msl 5 hPa、q 1.5 g/kg、降水 5 mm/6h）、`PRECIP_THRESHOLDS_MM`、`FSS_NEIGHBORHOOD_PX`。
 - 概率长表：`scores/prob_all.csv`（`scripts/wb2_prob2csv.py` 解析）
