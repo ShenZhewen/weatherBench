@@ -84,6 +84,7 @@
 <script>
 "use strict";
 const DATA = {};
+const AVAIL = {};              // tab -> 指标可用性索引（prep.py 生成 availability_<src>.json）
 let meta = null;               // parsed metric payload
 
 const el = id => document.getElementById(id);
@@ -185,6 +186,24 @@ async function loadMetric(name) {
   const j = await r.json();
   meta = j;
   DATA[name] = j;
+}
+
+async function loadAvailability(t) {
+  if (AVAIL[t]) return AVAIL[t];
+  try {
+    const r = await fetch('data/availability_' + t + '.json');
+    AVAIL[t] = r.ok ? await r.json() : null;
+  } catch (e) { AVAIL[t] = null; }
+  return AVAIL[t];
+}
+
+// 当前 (变量, 分辨率, 年份) 下该指标是否有任何一条曲线。
+// 索引缺失时返回 true，退回“只要文件存在就显示”的旧行为。
+function metricHasData(metric, vkey, res, year) {
+  const idx = AVAIL[tab];
+  if (!idx) return true;
+  const combos = idx[metric];
+  return !!(combos && combos[vkey] && combos[vkey].includes(res + '|' + year));
 }
 
 function varOptions(vkey) {
@@ -378,16 +397,41 @@ function safeSelect(id, values) {
 function fillRepSelectors() {
   safeSelect('year', meta.years || []);
   safeSelect('resolution', meta.resolutions || []);
+  fillMetricOptions();
+}
+
+function preferredMetric() {
+  const cfg = TABS[tab];
+  const opts = [...el('metric').options].map(o => o.value);
+  return opts.includes(cfg.default) ? cfg.default : (opts[0] || cfg.default);
+}
+
+// 指标下拉只列出当前 (变量, 分辨率, 年份) 真有数据的指标；
+// 当前选中项失效时退回默认指标（RMSE / CRPS），再不行取第一个。
+function fillMetricOptions() {
   const m = el('metric');
   const prev = m.value;
-  m.innerHTML = '';
+  const vkey = currentVar();
+  const year = el('year').value;
+  const res = el('resolution').value;
   const cfg = TABS[tab];
+  m.innerHTML = '';
   for (const me of cfg.order) {            // advertise any file we can serve, not just loaded
     if (!hasFile(me)) continue;
+    if (!metricHasData(me, vkey, res, year)) continue;
     const o = document.createElement('option'); o.value = me;
     o.textContent = cfg.names[me] || me; m.appendChild(o);
   }
+  if (!m.options.length) {
+    // 索引里查不到这个组合也别把下拉做成空的（例如新加的变量还没生成索引）
+    for (const me of cfg.order) {
+      if (!hasFile(me)) continue;
+      const o = document.createElement('option'); o.value = me;
+      o.textContent = cfg.names[me] || me; m.appendChild(o);
+    }
+  }
   if (prev && [...m.options].some(o => o.value === prev)) m.value = prev;
+  else m.value = preferredMetric();
 }
 
 function fillRelativeTo() {
@@ -409,6 +453,7 @@ async function initMetrics() {
   try {
     await loadMetric(first);
   } catch (e) { el('err').textContent = 'init: ' + e.message; return; }
+  await loadAvailability(tab);
   fillMetaSelects();
   // default to a multi-level pressure var so level dropdown isn't bare Surface
   for (const f of ['temperature', 'geopotential', '2m_temperature']) {
@@ -418,9 +463,9 @@ async function initMetrics() {
   if ([...el('level').options].some(o => o.value === '850')) el('level').value = '850';
   fillRepSelectors();
   fillRelativeTo();
-  el('metric').value = first;
   // most ensemble/prob models are only scored in 2020; default to fullest year
   if (meta.years && meta.years.includes('2020')) el('year').value = '2020';
+  fillMetricOptions();   // 年份变了（尤其额外指标只有 2022），再过滤一次
 }
 
 async function switchTab(t) {
@@ -432,9 +477,9 @@ async function switchTab(t) {
     const first = (cfg.default && hasFile(cfg.default)) ? cfg.default
                 : cfg.order.find(m => hasFile(m)) || cfg.order[0];
     await loadMetric(first);
+    await loadAvailability(t);
     fillMetaSelects();
     fillRepSelectors();
-    el('metric').value = first;
     fillRelativeTo();
     await refresh();
   } catch (e) { el('err').textContent = 'switch: ' + e.message; }
@@ -443,8 +488,15 @@ async function switchTab(t) {
 async function init() {
   await initMetrics();
   await refresh();   // render the default view immediately (initMetrics only populates)
-  ['variable','level','metric','year','resolution'].forEach(id =>
-    el(id).addEventListener('change', refresh));
+  // 变量/分辨率/年份一变，可用的指标集合就可能变：先重排指标下拉，再画图。
+  el('variable').addEventListener('change', () => {
+    refillLevels();          // 换变量后层级集合会变（如地面量只剩 Surface）
+    fillMetricOptions();
+    refresh();
+  });
+  ['level','year','resolution'].forEach(id =>
+    el(id).addEventListener('change', () => { fillMetricOptions(); refresh(); }));
+  el('metric').addEventListener('change', refresh);
   el('markers').addEventListener('change', refresh);
   document.querySelectorAll('input[name=relative]').forEach(r =>
     r.addEventListener('change', e => {

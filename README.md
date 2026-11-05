@@ -31,6 +31,8 @@
   msl 5 hPa、q 1.5 g/kg、降水 5 mm/6h）、`PRECIP_THRESHOLDS_MM`、`FSS_NEIGHBORHOOD_PX`。
 - 概率长表：`scores/prob_all.csv`（`scripts/wb2_prob2csv.py` 解析）
 - 站点 JSON：由 `prep.py --src=det|prob` 从上述 CSV 瘦化生成到 `data/`
+- 指标可用性索引：同一命令同时生成 `data/availability_<src>.json`（指标 -> 有数据的
+  变量/分辨率/年份组合），前端据此隐藏当前选择下一条线都没有的指标选项
 
 ## 本地预览
 

@@ -165,6 +165,21 @@ def build(content):
     return out
 
 
+def availability(metrics):
+    """metric -> {vkey: ['<res>|<year>', ...]}：有数据的组合，供下拉框过滤空指标。"""
+    out = {}
+    for m, by_truth in metrics.items():
+        by_var = {}
+        for by_res in by_truth.values():
+            for res, by_year in by_res.items():
+                for yr, by_v in by_year.items():
+                    for vkey, by_model in by_v.items():
+                        if any(pts for pts in by_model.values()):
+                            by_var.setdefault(vkey, set()).add(res + '|' + yr)
+        out[m] = {k: sorted(v) for k, v in by_var.items()}
+    return out
+
+
 def run(src):
     if src == 'prob':
         csv_path = os.path.join(ROOT, 'scores', 'prob_all.csv')
@@ -197,9 +212,14 @@ def run(src):
         with open(path, 'w', encoding='utf-8') as f:
             json.dump(payload, f, separators=(',', ':'))
         sizes[m] = os.path.getsize(path)
+    avail_path = os.path.join(OUT, 'availability_%s.json' % src)
+    with open(avail_path, 'w', encoding='utf-8') as f:
+        json.dump(availability(metrics), f, separators=(',', ':'))
     total = sum(sizes.values())
     print('[%s] %s' % (src, csv_path))
-    print('wrote %d metric files -> %s' % (len(sizes), OUT))
+    print('wrote %d metric files -> %s (+ %s, %.1f KB)'
+          % (len(sizes), OUT, os.path.basename(avail_path),
+             os.path.getsize(avail_path) / 1e3))
     for m, b in sorted(sizes.items(), key=lambda x: -x[1]):
         print('  %-26s %6.1f MB' % (m, b / 1e6))
     print('  total %5.1f MB' % (total / 1e6))
